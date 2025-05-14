@@ -1,6 +1,10 @@
-import streamlit as st
-import json
+# streamlitapp.py
+
+# --------------------------------------
+# Imports and Dependencies
+# --------------------------------------
 import os
+import json
 import time
 import re
 import random
@@ -9,38 +13,24 @@ from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence, RunnableParallel
+import streamlit as st
 
-# Set up Streamlit page configuration
-st.set_page_config(page_title="FaqihAI - Islamic Jurisprudence Chat", layout="wide")
-st.title("FaqihAI - استشارات فقهية")
-st.write("مرحبًا! يمكنك طرح سؤالك الفقهي بالعربية. اكتب 'exit' للخروج.")
+# --------------------------------------
+# APIs Configuration
+# --------------------------------------
+os.environ["MASTER_API_KEY"] = "AIzaSyCvFaH8kHfIg2tZglRSfFbgpFk1AJDaF2M"  # amr.monsef02@eng.cu.edu.eg gemini key
+os.environ["RAG_FORMATTER_API_KEY"] = "AIzaSyCY6wTYs_3jyshLdvSgcavRkQexD2P0HGs"  # amrhammadcondrx@gmail.com gemini key
+os.environ["RAG_AGENT_API_KEY"] = "AIzaSyCnQ8wwxLCj-bHMCGTug0dfTqCdDqn8ohA"  # hammad.riooo@gmail.com gemini key
+os.environ["FILTER_API_KEY"] = "AIzaSyBAfO7xKZujjF8ixh2mDRBSLVaNMX3BIoc"  # amrhammadeece2025@gmail.com gemini key
+os.environ["FIQH_API_KEY"] = "AIzaSyBZkWHVDc9iKBB7GLcaz_nvZNAANFGJVhc"  # amrohammad266@gmail.com gemini key
+os.environ["MAZHAB_API_KEY"] = "AIzaSyA72VD4VNrdH-fsIoF1DkUeaJ8mFZSBur4"  # shady3addy@gmail.com gemini key
+os.environ["FATWA_API_KEY"] = "AIzaSyCnT8kXZE346G2Ps8xY_PAmOMPcjyiXZaE"  # hanyzaki881@gmail gemini key
+os.environ["THREAD_CLASSIFIER_API_KEY"] = "AIzaSyCo2seKb1tQoeMPN4qQXZY_d0fpyRmhvBw"  # hellowelcomehellowelcomehello@gmail.com gemini key
+os.environ["COMMAND_PREPROCESSOR_API_KEY"] = "AIzaSyD7wmTcLCgnrufWedV00qAm2_mzAxMyyZE"  # 02uploaddrive@gmail.com gemini key
 
-# Initialize session state for conversation
-if "state" not in st.session_state:
-    st.session_state.state = {
-        "question_threads": [],
-        "is_mazhab_clear": False,
-        "category": "Unknown",
-        "retries": 0,
-        "mazhab_switched": False
-    }
-if "global_history" not in st.session_state:
-    st.session_state.global_history = []
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Environment variables for API keys
-os.environ["MASTER_API_KEY"] = "AIzaSyCvFaH8kHfIg2tZglRSfFbgpFk1AJDaF2M"
-os.environ["RAG_FORMATTER_API_KEY"] = "AIzaSyCY6wTYs_3jyshLdvSgcavRkQexD2P0HGs"
-os.environ["RAG_AGENT_API_KEY"] = "AIzaSyCnQ8kXZE346G2Ps8xY_PAmOMPcjyiXZaE"
-os.environ["FILTER_API_KEY"] = "AIzaSyBAfO7xKZujjF8ixh2mDRBSLVaNMX3BIoc"
-os.environ["FIQH_API_KEY"] = "AIzaSyBZkWHVDc9iKBB7GLcaz_nvZNAANFGJVhc"
-os.environ["MAZHAB_API_KEY"] = "AIzaSyA72VD4VNrdH-fsIoF1DkUeaJ8mFZSBur4"
-os.environ["FATWA_API_KEY"] = "AIzaSyCnT8kXZE346G2Ps8xY_PAmOMPcjyiXZaE"
-os.environ["THREAD_CLASSIFIER_API_KEY"] = "AIzaSyCo2seKb1tQoeMPN4qQXZY_d0fpyRmhvBw"
-os.environ["COMMAND_PREPROCESSOR_API_KEY"] = "AIzaSyD7wmTcLCgnrufWedV00qAm2_mzAxMyyZE"
-
-# Define chat models
+# --------------------------------------
+# Defining Chat Models
+# --------------------------------------
 llm_master = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.7, google_api_key=os.environ["MASTER_API_KEY"])
 llm_formatter = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.5, google_api_key=os.environ["RAG_FORMATTER_API_KEY"])
 llm_rag = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.7, google_api_key=os.environ["RAG_AGENT_API_KEY"])
@@ -51,8 +41,10 @@ llm_fatwa = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.5, go
 llm_thread_classifier = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.5, google_api_key=os.environ.get("THREAD_CLASSIFIER_API_KEY", os.environ["MASTER_API_KEY"]))
 llm_command_preprocessor = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.5, google_api_key=os.environ.get("COMMAND_PREPROCESSOR_API_KEY", os.environ["MASTER_API_KEY"]))
 
-# System and conditional prompts
-system_prompt = """أنت شيخ إسلامي حكيم وودود، ترافق طالبًا للعلم بقلب رحيم كأنك صديق له في رحلة العلم. تتحدث بالعربية الفصحى بنبرة دافئة، متواضعة، ومُحببة، مستخدمًا عبارات متنوعة ومشجعة تزرع الطمأنينة. رحّب بالسلام والكلمات الطيبة بحرارة ورد عليها بلطف، معبرًا عن الفرح بلقاء الطالب، ثم انتقل بلطف إلى تشجيعه على طرح سؤال فقهي دون إلحاح أو تكرار ممل. إذا ذُكر الفقه، حاول معرفة المذهب الفقهي (الحنبلي، الشافعي، المالكي، الحنفي) بأسلوب طبيعي وغير مباشر إن أمكن، دون جعل ذلك محور الرد. اجعل ردودك متينة لغويًا، متوسطة الطول، وابدأ دائمًا بالحمد والصلاة على النبي صلى الله عليه وسلم بأسلوب الشيخ العالم. لا تجب مباشرة عن الأسئلة الفقهية، بل شجع الطالب على توضيح أو استكمال السؤال بمحبة، مع الحفاظ على جو ودي يشعر الطالب فيه بالتقدير والتشجيع."""
+# --------------------------------------
+# System and Conditional Prompts
+# --------------------------------------
+system_prompt = """أنت شيخ إسلامي حكيم وودود، ترافق طالبًا للعلم بقلب رحيم كأنك صديق له في رحلة العلم. تتحدث بالعربية الفصحى بنبرة دافئة، متواضعة، ومُحببة، مستخدمًا عبارات متنوعة ومشجعة تزرع الطمأنينة. رحّب بالسلام والكلمات الطيبة بحرارة ورد عليها بلطف، معبرًا عن الفرح بلقاء الطالب، ثم انتقل بلطف إلى تشجيعه على طرح سؤال فقهي دون إلحاح أو تكرار ممل. إذا ذُكر الفقه، حاول معرفة المذهب الفقهي (الحنبلي، الشافعي، المالكي، الحنفي) بأسلوب طبيعي وغير مباشر إن أمكن، دون جعل ذلك محور الرد. اجعل ردودك متينة لغويًا، متوسطة الطول، وابدأ دائمًا بالحمد والصلاة على النبي صلى الله عليه وسلم بأسلوب الشيخ العالم. لا تجب مباشرة عن الأسئلة الفقهية، بل شجع الطالب على التوضيح أو استكمال السؤال بمحبة، مع الحفاظ على جو ودي يشعر الطالب فيه بالتقدير والتشجيع."""
 conditional_prompts = {
     "missing_mazhab": [
         "يا طالب العلم، أيّ مذهبٍ تودّ مناقشته؟ الحنبلي، الشافعي، المالكي، أم الحنفي؟",
@@ -91,7 +83,9 @@ conversation_prompt = PromptTemplate(
     template=f"{system_prompt}\nChat history: {{history}}\nأنت شيخ فقيه، تتحدث بلطف وتواضع، كأنك ترعى طالباً في طريق العلم. استخدم عبارات متنوعة ومشجعة، وتحدث بالعربية الفصحى بأسلوب يبعث الطمأنينة والمحبة. لا تجب عن الأسئلة الفقهية مباشرة، بل شجع الطالب على توضيح السؤال أو المذهب، مع بناء رابط ودي. للأسئلة الاجتماعية، أجب بحرارة وتواضع، ثم انتقل بلطف إلى تشجيع السؤال الفقهي. Input: {{input}}"
 )
 
+# --------------------------------------
 # RAG Formatter Prompts
+# --------------------------------------
 rag_formatter_prompt = PromptTemplate(
     input_variables=["input", "related_threads"],
     template="""Your task is to process the user's question about Islamic jurisprudence (fiqh) and any related prior questions, returning a structured JSON response with reformulated questions suitable for searching classical fiqh books.
@@ -127,24 +121,28 @@ Related Threads: {related_threads}
 """
 )
 
+# --------------------------------------
 # Thread Classifier Prompts
+# --------------------------------------
 thread_classifier_prompt = PromptTemplate(
     input_variables=["input", "thread_history"],
     template="""Analyze the input to determine its relationship to prior fiqh questions in the thread history. Output JSON: {{ \"thread_type\": str, \"related_thread_ids\": list[int] }}.
-- thread_type: One of \"new\" (new fiqh question), \"follow_up\" (builds on a specific thread), or \"composite\" (links multiple threads).
-- related_thread_ids: List of thread IDs (integers) relevant to the input. Empty for \"new\".
+- thread_type: One of "new" (new fiqh question), "follow_up" (builds on a specific thread), or "composite" (links multiple threads).
+- related_thread_ids: List of thread IDs (integers) relevant to the input. Empty for "new".
 
 Examples:
-- Input: \"ما هي أركان الوضوء؟\", Thread History: [] -> {{ \"thread_type\": \"new\", \"related_thread_ids\": [] }}
-- Input: \"وضح أكثر عن أركان الوضوء\", Thread History: [{ \"thread_id\": 1, \"question\": \"ما هي أركان الوضوء؟\" }] -> {{ \"thread_type\": \"follow_up\", \"related_thread_ids\": [1] }}
-- Input: \"كيف يرتبط الوضوء بالصلاة؟\", Thread History: [{ \"thread_id\": 1, \"question\": \"ما هي أركان الوضوء؟\" }, { \"thread_id\": 2, \"question\": \"ما شروط الصلاة؟\" }] -> {{ \"thread_type\": \"composite\", \"related_thread_ids\": [1, 2] }}
+- Input: "ما هي أركان الوضوء؟", Thread History: [] -> {{ \"thread_type\": \"new\", \"related_thread_ids\": [] }}
+- Input: "وضح أكثر عن أركان الوضوء", Thread History: [{ \"thread_id\": 1, \"question\": \"ما هي أركان الوضوء؟" }] -> {{ \"thread_type\": \"follow_up\", \"related_thread_ids\": [1] }}
+- Input: "كيف يرتبط الوضوء بالصلاة؟", Thread History: [{ \"thread_id\": 1, \"question\": \"ما هي أركان الوضوء؟" }, { \"thread_id\": 2, \"question\": \"ما شروط الصلاة؟" }] -> {{ \"thread_type\": \"composite\", \"related_thread_ids\": [1, 2] }}
 
 Input: {input}
 Thread History: {thread_history}
 """
 )
 
+# --------------------------------------
 # Command Preprocessor Prompts
+# --------------------------------------
 command_preprocessor_prompt = PromptTemplate(
     input_variables=["input"],
     template="""Analyze the input to determine if it is a fiqh-related command (e.g., imperative like 'Tell me about wudu'). If it is, reformulate it into a question suitable for fiqh research. Output JSON: {{ \"is_command\": bool, \"reformulated_question\": str }}.
@@ -152,44 +150,40 @@ command_preprocessor_prompt = PromptTemplate(
 - reformulated_question: The input reformulated as a question if is_command is True, else empty string.
 
 Examples:
-- Input: \"أخبرني عن الوضوء\" -> {{ \"is_command\": true, \"reformulated_question\": \"ما هي أحكام الوضوء؟\" }}
+- Input: \"أخبرني عن الوضوء\" -> {{ \"is_command\": true, \"reformulated_question\": \"ما هي أحكام الوضوء؟" }}
 - Input: \"ما هي أركان الصلاة؟\" -> {{ \"is_command\": false, \"reformulated_question\": \"\" }}
-- Input: \"اجمع معلومات عن الصلاة\" -> {{ \"is_command\": true, \"reformulated_question\": \"ما هي تفاصيل أحكام الصلاة؟\" }}
+- Input: \"اجمع معلومات عن الصلاة\" -> {{ \"is_command\": true, \"reformulated_question\": \"ما هي تفاصيل أحكام الصلاة؟" }}
 - Input: \"كيف حالك؟\" -> {{ \"is_command\": false, \"reformulated_question\": \"\" }}
 
 Input: {input}
 """
 )
 
+# --------------------------------------
 # RAG Formatter Chain
-def parse_json_output(output, is_formatter=False):
-    raw_output = output.strip()
-    try:
-        match = re.search(r'\{.*\}', raw_output, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        return {"question": "خطأ في التنسيق - لم يتم العثور على JSON"} if is_formatter else {"error": "No JSON found", "raw": raw_output}
-    except json.JSONDecodeError:
-        return {"question": "خطأ في التنسيق - خطأ في فك تشفير JSON"} if is_formatter else {"error": "JSON Decode Error", "raw": raw_output}
-    except Exception:
-        return {"question": "خطأ في التنسيق - خطأ غير متوقع"} if is_formatter else {"error": "Unexpected Parsing Error", "raw": raw_output}
-
+# --------------------------------------
 rag_formatter = rag_formatter_prompt | llm_formatter | (lambda x: parse_json_output(x.content, is_formatter=True))
 
+# --------------------------------------
 # Pseudo RAG Prompts
+# --------------------------------------
 rag_agent_prompt = PromptTemplate(
     input_variables=["category", "question"],
     template="Simulate a RAG agent response for category: {category} and question: {question}. Provide a concise fiqh answer with citation in formal Arabic from a proper book or group of books related to the {category}. No English text nor side comments allowed."
 )
 
+# --------------------------------------
 # Pseudo RAG Chain
+# --------------------------------------
 rag_agent = rag_agent_prompt | llm_rag
 
+# --------------------------------------
 # Classifier Prompts
+# --------------------------------------
 filter_prompt = PromptTemplate(
     input_variables=["input"],
     template="""Analyze the Arabic text to determine its intent. Output JSON: {{ \"intent\": str }}.
-- intent: One of \"question\" (seeking fiqh information), \"command\" (imperative fiqh request), \"social\" (personal inquiry or greeting), or \"other\" (unrelated).
+- intent: One of "question" (seeking fiqh information), "command" (imperative fiqh request), "social" (personal inquiry or greeting), or "other" (unrelated).
 
 Examples:
 - Text: السلام عليكم -> {{ \"intent\": \"social\" }}
@@ -204,28 +198,28 @@ Text: {input}
 
 fiqh_prompt = PromptTemplate(
     input_variables=["input"],
-    template="""Analyze the input to determine if it is fiqh-related and if the question is clear. Output JSON: {{ \"is_fiqh_related\": bool, \"is_question_clear\": bool }}.
+    template="""Analyze the input to determine if it is fiqh-related and if the question is clear. Output JSON: {{ "is_fiqh_related": bool, "is_question_clear": bool }}.
 Examples:
-- Input: \"ما هي أركان الوضوء؟\" -> {{ \"is_fiqh_related\": true, \"is_question_clear\": true }}
-- Input: \"الأهلي كسب كأس العالم كام مرة؟\" -> {{ \"is_fiqh_related\": false, \"is_question_clear\": true }}
-- Input: \"وضوء\" -> {{ \"is_fiqh_related\": true, \"is_question_clear\": false }}
+- Input: "ما هي أركان الوضوء؟" -> {{ "is_fiqh_related": true, "is_question_clear": true }}
+- Input: "الأهلي كسب كأس العالم كام مرة؟" -> {{ "is_fiqh_related": false, "is_question_clear": true }}
+- Input: "وضوء" -> {{ "is_fiqh_related": true, "is_question_clear": false }}
 Input: {input}
 """
 )
 
 mazhab_prompt = PromptTemplate(
     input_variables=["input"],
-    template="""Analyze the Arabic text to determine if it explicitly or implicitly mentions one of the four main Sunni schools (Hanafi, Maliki, Shafi'i, Hanbali). Output JSON: {{ \"is_mazhab_clear\": bool, \"category\": str }}.
+    template="""Analyze the Arabic text to determine if it explicitly or implicitly mentions one of the four main Sunni schools (Hanafi, Maliki, Shafi'i, Hanbali). Output JSON: {{ "is_mazhab_clear": bool, "category": str }}.
 - is_mazhab_clear: True if a school is clearly mentioned or implied (e.g., through a direct statement, single mazhab name, or narrative indicating preference), False otherwise.
-- category: One of \"حنفي\", \"مالكي\", \"شافعي\", \"حنبلي\", or \"Unknown\" if no school is specified.
+- category: One of "حنفي", "مالكي", "شافعي", "حنبلي", or "Unknown" if no school is specified.
 
 Examples:
-- Text: أنا أتبع المذهب الشافعي -> {{ \"is_mazhab_clear\": true, \"category\": \"شافعي\" }}
-- Text: ما حكم كذا عند الحنابلة؟ -> {{ \"is_mazhab_clear\": true, \"category\": \"حنبلي\" }}
-- Text: ما هي أركان الصلاة؟ -> {{ \"is_mazhab_clear\": false, \"category\": \"Unknown\" }}
-- Text: شافعي -> {{ \"is_mazhab_clear\": true, \"category\": \"شافعي\" }}
-- Text: حنبلي -> {{ \"is_mazhab_clear\": true, \"category\": \"حنبلي\" }}
-- Text: أبويا كان بيحب الإمام أحمد بس أمي بتحب الإمام الشافعي وخالي مالكي يبقا أنا إيه؟ أكيد حنفي -> {{ \"is_mazhab_clear\": true, \"category\": \"حنفي\" }}
+- Text: أنا أتبع المذهب الشافعي -> {{ "is_mazhab_clear": true, "category": "شافعي" }}
+- Text: ما حكم كذا عند الحنابلة؟ -> {{ "is_mazhab_clear": true, "category": "حنبلي" }}
+- Text: ما هي أركان الصلاة؟ -> {{ "is_mazhab_clear": false, "category": "Unknown" }}
+- Text: شافعي -> {{ "is_mazhab_clear": true, "category": "شافعي" }}
+- Text: حنبلي -> {{ "is_mazhab_clear": true, "category": "حنبلي" }}
+- Text: أبويا كان بيحب الإمام أحمد بس أمي بتحب الإمام الشافعي وخالي مالكي يبقا أنا إيه؟ أكيد حنفي -> {{ "is_mazhab_clear": true, "category": "حنفي" }}
 
 Text: {input}
 """
@@ -233,25 +227,41 @@ Text: {input}
 
 fatwa_prompt = PromptTemplate(
     input_variables=["input"],
-    template="""Analyze the input to determine if it is a fatwa-type question (personal situation, modern issue, or requires contemporary ijtihad). Output JSON: {{ \"is_fatwa_type\": bool }}.
+    template="""Analyze the input to determine if it is a fatwa-type question (personal situation, modern issue, or requires contemporary ijtihad). Output JSON: {{ "is_fatwa_type": bool }}.
 - is_fatwa_type: True if the question involves a personal situation, modern issue, or requires contemporary scholarly interpretation (e.g., financial transactions, medical ethics, or personal disputes). False if it pertains to established fiqh rulings from classical texts.
 
 Examples:
-- Input: \"هل يجوز لي أخذ قرض من البنك لشراء شقة؟\" -> {{ \"is_fatwa_type\": true }}
-- Input: \"أنا تشاجرت مع زوجتي وقلت كذا، هل وقع الطلاق؟\" -> {{ \"is_fatwa_type\": true }}
-- Input: \"ما هي أركان الوضوء؟\" -> {{ \"is_fatwa_type\": false }}
-- Input: \"ما حكم من نسي ركعة في الصلاة ثم تذكر؟\" -> {{ \"is_fatwa_type\": false }}
-- Input: \"هل أتبرع بأعضاء ابني المتوفى؟\" -> {{ \"is_fatwa_type\": true }}
+- Input: "هل يجوز لي أخذ قرض من البنك لشراء شقة؟" -> {{ "is_fatwa_type": true }}
+- Input: "أنا تشاجرت مع زوجتي وقلت كذا، هل وقع الطلاق؟" -> {{ "is_fatwa_type": true }}
+- Input: "ما هي أركان الوضوء؟" -> {{ "is_fatwa_type": false }}
+- Input: "ما حكم من نسي ركعة في الصلاة ثم تذكر؟" -> {{ "is_fatwa_type": false }}
+- Input: "هل أتبرع بأعضاء ابني المتوفى؟" -> {{ "is_fatwa_type": true }}
 
 Input: {input}
 """
 )
 
+# --------------------------------------
 # Parsing Functions
+# --------------------------------------
+def parse_json_output(output, is_formatter=False):
+    raw_output = output.strip()
+    try:
+        match = re.search(r'\{.*\}', raw_output, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return {"question": "خطأ في التنسيق - لم يتم العثور على JSON"} if is_formatter else {"error": "No JSON found", "raw": raw_output}
+    except json.JSONDecodeError:
+        return {"question": "خطأ في التنسيق - خطأ في فك تشفير JSON"} if is_formatter else {"error": "JSON Decode Error", "raw": raw_output}
+    except Exception:
+        return {"question": "خطأ في التنسيق - خطأ غير متوقع"} if is_formatter else {"error": "Unexpected Parsing Error", "raw": raw_output}
+
 def is_arabic_text(text):
     return bool(re.search(r'[\u0600-\u06FF]', text.strip()))
 
+# --------------------------------------
 # Classifier Chains
+# --------------------------------------
 filter_chain = RunnableSequence(filter_prompt | llm_filter | (lambda x: parse_json_output(x.content)))
 thread_classifier_chain = RunnableSequence(thread_classifier_prompt | llm_thread_classifier | (lambda x: parse_json_output(x.content)))
 command_preprocessor_chain = RunnableSequence(command_preprocessor_prompt | llm_command_preprocessor | (lambda x: parse_json_output(x.content)))
@@ -261,7 +271,9 @@ parallel_classifiers = RunnableParallel(
     fatwa=fatwa_prompt | llm_fatwa | (lambda x: parse_json_output(x.content))
 )
 
+# --------------------------------------
 # Conversation Logic
+# --------------------------------------
 master_memory = ConversationBufferMemory()
 formatter_memory = ConversationBufferMemory()
 conversation = ConversationChain(llm=llm_master, memory=master_memory, prompt=conversation_prompt)
@@ -378,47 +390,94 @@ def handle_dialogue(user_input, state, global_history):
             response = random.choice(conditional_prompts["missing_mazhab"])
             global_history.append(("Sheikh", response))
 
-    return response, formatter_result if rag_triggered else None, state, global_history
+    return response, formatter_result, state, global_history
 
-# Streamlit chat interface
-chat_container = st.container()
-input_container = st.container()
+# --------------------------------------
+# Streamlit Interface Section
+# --------------------------------------
+def main():
+    # Set page configuration for RTL and title
+    st.set_page_config(page_title="استشارة فقيهية - FaqihAI", layout="centered")
+    
+    # Add custom CSS for RTL and styling
+    st.markdown("""
+        <style>
+        body, html {
+            direction: rtl;
+            text-align: right;
+            font-family: 'Arial', sans-serif;
+        }
+        .stApp {
+            background-color: #f5f7fa;
+        }
+        .stTitle {
+            color: #2c3e50;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        .chat-message-user {
+            background-color: #e1e8f0;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .chat-message-agent {
+            background-color: #d4e6f1;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .stTextInput > div > div > input {
+            border-radius: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-with chat_container:
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Initialize session state
+    if "state" not in st.session_state:
+        st.session_state.state = {
+            "question_threads": [],
+            "is_mazhab_clear": False,
+            "category": "Unknown",
+            "retries": 0,
+            "mazhab_switched": False
+        }
+    if "global_history" not in st.session_state:
+        st.session_state.global_history = []
 
-with input_container:
+    # Display title
+    st.title("استشارة فقيهية - FaqihAI")
+
+    # Display welcome message
+    welcome_message = """
+    الحمد لله رب العالمين، والصلاة والسلام على أشرف الأنبياء والمرسلين، سيدنا محمد وعلى آله وصحبه أجمعين.
+    
+    السلام عليكم ورحمة الله وبركاته، يا طالب العلم الغالي! ما أسعد قلبي بلقائك في هذه الرحلة المباركة لطلب العلم.
+    
+    أنا هنا لأساعدك في مسائل الفقه بكل محبة وتواضع، فلا تتردد في طرح سؤالك، وسأكون معك خطوة بخطوة بإذن الله.
+    """
+    with st.chat_message("agent"):
+        st.markdown(welcome_message)
+
+    # Display chat history
+    for sender, message in st.session_state.global_history:
+        with st.chat_message("user" if sender == "User" else "agent"):
+            st.markdown(message)
+
+    # Chat input
     user_input = st.chat_input("اكتب سؤالك الفقهي هنا...")
 
-if user_input:
-    # Display user message
-    with chat_container:
-        with st.chat_message("user"):
-            st.markdown(f"**أنت:** {user_input}")
-
-    # Handle exit condition
-    if user_input.lower() == "exit":
-        with chat_container:
-            with st.chat_message("assistant"):
-                st.markdown("**الفقيه:** وداعًا! نسأل الله أن ينفعك بالعلم.")
-        st.session_state.messages.append({"role": "assistant", "content": "وداعًا! نسأل الله أن ينفعك بالعلم."})
-    else:
-        # Process the input using the original dialogue logic
+    if user_input:
+        # Handle the dialogue
         response, rag_input, st.session_state.state, st.session_state.global_history = handle_dialogue(
             user_input, st.session_state.state, st.session_state.global_history
         )
         
         # Display the response
-        with chat_container:
-            with st.chat_message("assistant"):
-                if rag_input:
-                    st.markdown(f"**الفقيه (RAG):** {response}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"**الفقيه (RAG):** {response}"})
-                else:
-                    st.markdown(f"**الفقيه:** {response}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"**الفقيه:** {response}"})
+        with st.chat_message("agent"):
+            st.markdown(response)
 
-    # Respect rate limits
-    time.sleep(5)
+if __name__ == "__main__":
+    main()
